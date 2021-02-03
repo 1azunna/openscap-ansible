@@ -1,0 +1,61 @@
+- hosts: [ubuntu18]
+  become: yes
+  gather_facts: no
+  vars:
+    oscap_profile: xccdf_org.ssgproject.content_profile_cis
+    oscap_policy: ssg-ubuntu1804-ds
+  tasks:
+  - name: install openscap scanner
+    apt:
+      name: 
+        - unzip
+        - libopenscap8
+        - ssg-base 
+        - ssg-debderived 
+        - ssg-debian 
+        - ssg-nondebian 
+        - ssg-applications
+      state: present
+      update_cache: yes
+
+  - name: Download OVAL files
+    get_url: 
+      url: https://github.com/ComplianceAsCode/content/releases/download/v0.1.53/scap-security-guide-0.1.53-oval-510.zip
+      dest: /tmp/scap-security-guide-0.1.53-oval-510.zip
+
+  - name: Unzip OVAL file
+    ansible.builtin.unarchive:
+      src: /tmp/scap-security-guide-0.1.53-oval-510.zip
+      dest: /tmp
+      remote_src: yes
+    
+  - block:
+    - name: run openscap
+      no_log: True
+      command: >
+        oscap xccdf eval
+        --profile {{ oscap_profile }}
+        --results-arf /tmp/oscap-arf.xml
+        --report /tmp/oscap-report.html
+        --fetch-remote-resources
+        /tmp/scap-security-guide-0.1.53-oval-5.10/{{ oscap_policy }}.xml
+
+    always:
+    - name: Generate remediation playbook
+      command: >
+        oscap xccdf generate fix 
+        --fix-type ansible 
+        --output /tmp/PlaybookToRemediate.yml 
+        --result-id "" /tmp/oscap-arf.xml
+
+    - name: download html report
+      fetch:
+        src: /tmp/oscap-report.html
+        dest: ./{{ inventory_hostname }}.html
+        flat: yes
+    
+    - name: download remediation playbook
+      fetch:
+        src: /tmp/PlaybookToRemediate.yml 
+        dest: ./{{ inventory_hostname }}-Remediation.yml
+        flat: yes

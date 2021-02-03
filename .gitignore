@@ -1,0 +1,7 @@
+inventory
+inventory.ini
+inventory.yaml
+inventory.yml
+*.html
+*.xml
+*-Remediation.yml
